@@ -170,9 +170,11 @@ type Destination struct {
 
 // DestinationStatus provides information about the delivery status of an object for a certain destination.
 // The status can be one of the following:
-// pending - inidicates that the object is pending delivery to this destination
-// delivering - indicates that the object is being delivered to this destination
-// delivered - indicates that the object was delivered to this destination
+//   pending - inidicates that the object is pending delivery to this destination
+//   delivering - indicates that the object is being delivered to this destination
+//   delivered - indicates that the object was delivered to this destination
+//   consumed - indicates that the object was consumed by this destination
+//   error - indicates that a feedback error message was received from this destination
 type DestinationStatus struct {
 	// DestType is the destination type
 	DestType string `json:"destinationType"`
@@ -181,6 +183,24 @@ type DestinationStatus struct {
 	DestID string `json:"destinationID"`
 
 	// Status is the destination status
+	Status string `json:"status"`
+
+	// Message is the message for the destination
+	Message string `json:"message"`
+}
+
+// ObjectStatus provides information about an object that is destined for a particular destination
+type ObjectStatus struct {
+	// OrgID is the organization ID of the object
+	OrgID string `json:"orgID"`
+
+	// ObjectType is the object type
+	ObjectType string `json:"objectType"`
+
+	// ObjectID is the object ID
+	ObjectID string `json:"objectID"`
+
+	// Status is the object status for this destination
 	Status string `json:"status"`
 }
 
@@ -193,6 +213,12 @@ const (
 
 	// DestStatusDelivered indicates that the object was delivered to this destination
 	DestStatusDelivered = "delivered"
+
+	// DestStatusConsumed indicates that the object was consumed at this destination
+	DestStatusConsumed = "consumed"
+
+	// DestStatusError indicates that there was an error in delivering the object to this destination
+	DestStatusError = "error"
 
 	// ObjectStatusNotReady indicates that the object is not ready to be sent to destinations.
 	ObjectStatusNotReady = "notReady"
@@ -357,6 +383,26 @@ func (syncClient *SyncServiceClient) GetDestinations() ([]Destination, error) {
 	}
 	if result == nil {
 		result = make([]Destination, 0)
+	}
+
+	return result, nil
+}
+
+// GetDestinationObjects returns the list of objects targeted at the specified destination
+func (syncClient *SyncServiceClient) GetDestinationObjects(destType, destID string) ([]ObjectStatus, error) {
+	url := fmt.Sprintf("%s://%s%s/%s/%s/%s/objects", syncClient.serviceProtocol, syncClient.serviceAddress,
+		destinationsPath, syncClient.orgID, destType, destID)
+	var result []ObjectStatus
+
+	err := syncClient.fetchInfoHelper(url, &result)
+	if err != nil {
+		if log.IsLogging(logger.ERROR) {
+			log.Error("Failed to get the objects target at %s/%s/%s. Error: %s\n", syncClient.orgID, destType, destID, err)
+		}
+		return nil, err
+	}
+	if result == nil {
+		result = make([]ObjectStatus, 0)
 	}
 
 	return result, nil

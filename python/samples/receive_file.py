@@ -22,8 +22,10 @@ def receive_callback(meta_data):
             sync_client.mark_object_consumed(meta_data)
 
 sync_client = SyncServiceClient.Client("https", "localhost", 6002)
-sync_client.set_ca_certificate("../persist/sync/certs/cert.pem")
 # sync_client = SyncServiceClient.Client("unix", "../persist/sync/ess.sock", 8080)
+# sync_client = SyncServiceClient.Client("secure-unix", "../persist/sync/ess.sock", 8080)
+
+sync_client.set_ca_certificate("../persist/sync/certs/cert.pem")
 
 key = ""
 secret = ""

@@ -90,6 +90,9 @@ class Client:
         if service_protocol == 'unix':
             self._service_address = "unix:8080"
             self._unix_socket_path = service_address
+        elif service_protocol == 'secure-unix':
+            self._service_address = "secure-unix:8080"
+            self._unix_socket_path = service_address
         else:
             self._service_address = service_address + ":" + str(service_port)
             self._unix_socket_path = ''

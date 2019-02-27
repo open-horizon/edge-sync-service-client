@@ -20,28 +20,56 @@ class UnixHTTPResponse(httplib.HTTPResponse, object):
         super(UnixHTTPResponse, self).__init__(sock, *args, **kwargs)
 
 
-class UnixHTTPConnection(httplib.HTTPConnection, object):
+class UnixHTTPConnection(urllib3.connection.HTTPConnection, object):
 
     def __init__(self, unix_socket_path):
         super(UnixHTTPConnection, self).__init__('http')
         self._unix_socket_path = unix_socket_path
 
-    def connect(self):
+    def _new_conn(self):
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(60)
         sock.connect(self._unix_socket_path)
         self.sock = sock
+        return sock
 
     def response_class(self, sock, *args, **kwargs):
         return UnixHTTPResponse(sock, *args, **kwargs)
 
 class UnixHTTPConnectionPool(urllib3.connectionpool.HTTPConnectionPool):
     def __init__(self, host, port, **kwargs):
-        super(UnixHTTPConnectionPool, self).__init__('unix', port)
+        super(UnixHTTPConnectionPool, self).__init__('localhost', port, **kwargs)
         self._unix_socket_path = kwargs['unix_socket_path']
 
     def _new_conn(self):
         return UnixHTTPConnection(self._unix_socket_path)
+
+
+class SecureUnixHTTPConnection(urllib3.connection.VerifiedHTTPSConnection, object):
+
+    def __init__(self, unix_socket_path):
+        super(SecureUnixHTTPConnection, self).__init__('localhost')
+        self._unix_socket_path = unix_socket_path
+
+    def _new_conn(self):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(60)
+        sock.connect(self._unix_socket_path)
+        self.sock = sock
+        return sock
+
+    def response_class(self, sock, *args, **kwargs):
+        return UnixHTTPResponse(sock, *args, **kwargs)
+
+class SecureUnixHTTPConnectionPool(urllib3.connectionpool.HTTPSConnectionPool):
+    def __init__(self, host, port, **kwargs):
+        super(SecureUnixHTTPConnectionPool, self).__init__('localhost', port, **kwargs)
+        self._unix_socket_path = kwargs['unix_socket_path']
+
+    def _new_conn(self):
+        conn = SecureUnixHTTPConnection(self._unix_socket_path)
+        return super(SecureUnixHTTPConnectionPool, self)._prepare_conn(conn)
+
 
 _key_fields = (
     'key_scheme',  # str
@@ -81,3 +109,6 @@ class ExtendedPoolManager(urllib3.PoolManager):
         self.pool_classes_by_scheme['unix'] = UnixHTTPConnectionPool
         self.key_fn_by_scheme['unix'] = \
             functools.partial(self.key_fn_by_scheme['http'].func, UnixPoolKey)
+        self.pool_classes_by_scheme['secure-unix'] = SecureUnixHTTPConnectionPool
+        self.key_fn_by_scheme['secure-unix'] = \
+            functools.partial(self.key_fn_by_scheme['https'].func, UnixPoolKey)

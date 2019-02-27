@@ -23,6 +23,7 @@ import (
 type SyncServiceClient struct {
 	serviceProtocol   string
 	serviceAddress    string
+	usingUnixSockets  bool
 	orgID             string
 	appKeySecretSet   bool
 	appKey            string
@@ -267,12 +268,18 @@ func NewSyncServiceClient(serviceProtocol string, serviceAddress string, service
 	client.updatesPollerStop = make(chan bool)
 	client.httpTransport = &http.Transport{}
 	client.httpClient = http.Client{Transport: client.httpTransport}
-	if strings.ToLower(serviceProtocol) != "unix" {
+	lowercaseServiceProtocol := strings.ToLower(serviceProtocol)
+	if lowercaseServiceProtocol != "unix" && lowercaseServiceProtocol != "secure-unix" {
 		client.serviceProtocol = serviceProtocol
 		client.serviceAddress = fmt.Sprintf("%s:%d", serviceAddress, servicePort)
 	} else {
-		client.serviceProtocol = "http"
-		client.serviceAddress = "unix:8080"
+		client.usingUnixSockets = true
+		if lowercaseServiceProtocol == "unix" {
+			client.serviceProtocol = "http"
+		} else {
+			client.serviceProtocol = "https"
+		}
+		client.serviceAddress = "localhost:8080"
 		client.httpTransport.Dial = func(proto, addr string) (conn net.Conn, err error) {
 			return client.httpTransport.DialContext(context.Background(), "unix", serviceAddress)
 		}

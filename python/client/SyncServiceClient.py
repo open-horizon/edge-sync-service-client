@@ -5,6 +5,7 @@
 
 import json
 import shutil
+import sys
 import threading
 import time
 
@@ -124,13 +125,18 @@ class Client:
             actualUrl = url
             if firstPoll:
                 actualUrl = actualUrl + "?received=true"
-            response = self._request_helper("GET", actualUrl)
-            if response.status == 200:
-                data = json.loads(response.data.decode('utf-8'))
-                for item in data:
-                    callback(MetaData(_json=item))
-            if (response.status >= 200 and response.status < 300) or response.status == 404:
-                firstPoll = False
+
+            try:
+                response = self._request_helper("GET", actualUrl)
+                if response.status == 200:
+                    data = json.loads(response.data.decode('utf-8'))
+                    for item in data:
+                        callback(MetaData(_json=item))
+                if (response.status >= 200 and response.status < 300) or response.status == 404:
+                    firstPoll = False
+            except:
+                (_, exc_value, _) = sys.exc_info() 
+                print exc_value
 
     def fetch_object_data(self, meta_data, writer):
         url = self._create_object_url(meta_data.object_type, meta_data.object_id, "data")

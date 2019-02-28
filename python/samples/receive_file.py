@@ -21,20 +21,42 @@ def receive_callback(meta_data):
             print "Received " + parts[0]
             sync_client.mark_object_consumed(meta_data)
 
-sync_client = SyncServiceClient.Client("https", "localhost", 6002)
-# sync_client = SyncServiceClient.Client("unix", "../persist/sync/ess.sock", 8080)
-# sync_client = SyncServiceClient.Client("secure-unix", "../persist/sync/ess.sock", 8080)
-
-sync_client.set_ca_certificate("../persist/sync/certs/cert.pem")
-
+protocol = "http"
+server = "localhost:8080"
+cert = ""
 key = ""
 secret = ""
-opts, args = getopt.getopt(sys.argv[1:], "k:s:")
+opts, args = getopt.getopt(sys.argv[1:], "p:s:", ["cert=", "key=", "secret="])
 for opt, value in opts:
-    if opt == "-k":
+    if opt == "-p":
+        protocol = value
+    elif opt == "-s":
+        server = value
+    elif opt == "--cert":
+        cert = value
+    elif opt == "--key":
         key = value
-    if opt == "-s":
+    elif opt == "--secret":
         secret = value
+
+if protocol != "unix" and protocol != "secure-unix":
+    parts = server.split(":")
+    if parts[0] != "":
+        host = parts[0]
+    if parts[1] != "":
+        if parts[1].isdigit():
+            port = int(parts[1])
+        else:
+            print "An invalid port number of ", parts[1], "was specified"
+            sys.exit(99)
+else:
+    host = server
+    port = 8080
+
+sync_client = SyncServiceClient.Client(protocol, host, port)
+
+if cert != "":
+    sync_client.set_ca_certificate(cert)
 if key != "":
     sync_client.set_app_key_and_secret(key, secret)
 

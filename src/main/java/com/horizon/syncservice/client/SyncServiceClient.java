@@ -41,6 +41,8 @@ import retrofit2.http.Path;
 
 /**
  * Client for Sync-Service
+ * 
+ * Note: Use the class SyncServiceClient.Builder to create a SyncServiceClient instance.
  */
 public class SyncServiceClient {
 
@@ -61,12 +63,12 @@ public class SyncServiceClient {
         this.api = retrofit.create(Api.class);
     }
 
-    /***
-     * Get the list of destinations in the org of the sync client
+    /**
+     * Get the list of destinations in the organization of the sync client.
      * 
-     * @return List<Destination>
-     * @throws SyncServiceException
-     * @throws IOException
+     * @return A List of {@link Destination Destination} class objects.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public List<Destination> getDestinations()
             throws SyncServiceException, IOException {
@@ -89,14 +91,15 @@ public class SyncServiceClient {
         }
     }
 
-    /***
-     * Get the list of objects at a destination
+    /**
+     * Get the list of objects at a destination.
      * 
-     * @param destType
-     * @param destID
-     * @return List<ObjectStatus>
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param destType The destination type of the destination whose list of objects is to be returned.
+     * @param destID The destination ID of the destination whose list of objects is to be returned.
+     * @return A List of {@link ObjectStatus ObjectStatus} class objects, which contain information
+     *                   about the objects at the specified destination.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public List<ObjectStatus> getDestinationObjects(String destType, String destID)
             throws SyncServiceException, IOException {
@@ -119,13 +122,19 @@ public class SyncServiceClient {
         }
     }
 
-    /***
-     * Update an object. Only object metadata is sent in this request
+    /**
+     * Create/update an object. Only object metadata is sent in this request
      * 
-     * @param metaData
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * <p>In the provided {@link SyncServiceMetaData SyncServiceMetaData} object, the application must provide
+     *      the ObjectID and ObjectType which uniquely identify the object.
+     * <p>When creating/updating an object in the CSS the application must also provide either destinationID
+     *      and destinationType or destinationsList.
+     * <p>All other fields in {@link SyncServiceMetaData SyncServiceMetaData} are optional and if not
+     *      specified will take the default values.
+     * 
+     * @param metaData specifies the object's metadata.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void updateObject(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         final String METHOD = "updateObject";
@@ -144,14 +153,15 @@ public class SyncServiceClient {
         }
     }
 
-    /***
-     * Metadata of updated objects of the specified objectType are retrieved
+    /**
+     * Metadata of updated objects of the specified objectType are retrieved.
      * 
-     * @param objectType
-     * @param received
-     * @return List<SyncServiceMetaData>
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param objectType specifies the type of objects whose updates are queried for.
+     * @param received If <code>true</code>, objects marked as received, will be included in the results.
+     * @return A List of {@link SyncServiceMetaData SyncServiceMetaData} class objects, one for each
+     *               updated object.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public List<SyncServiceMetaData> getUpdatedObjects(String objectType, boolean received)
             throws SyncServiceException, IOException {
@@ -174,14 +184,15 @@ public class SyncServiceClient {
         }
     }
 
-    /***
+    /**
      * Get information about the destinations to which an object was sent
      * 
-     * @param objectType
-     * @param objectID
-     * @return List<DestinationStatus>
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param objectType The object type of the object whose destination information will be retrieved.
+     * @param objectID The object ID of the object whose destination information will be retrieved.
+     * @return A List of {@link DestinationStatus DestinationStatus} class objects, each of which has
+     *                 information about a destination to which the object was sent.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public List<DestinationStatus> getObjectDestinations(String objectType, String objectID)
             throws SyncServiceException, IOException {
@@ -205,13 +216,12 @@ public class SyncServiceClient {
     }
 
     /**
-     * Update an object's data from an array of bytes
+     * Update an object's data from an array of bytes.
      * 
-     * @param metaData
-     * @param input
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object whose data is to be updated.
+     * @param input The new data for the object.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void updateObjectData(SyncServiceMetaData metaData, byte[] input)
             throws SyncServiceException, IOException {
@@ -232,13 +242,12 @@ public class SyncServiceClient {
     }
 
     /**
-     * Update an object's data from a file
+     * Update an object's data from a file.
      *
-     * @param metaData
-     * @param input
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object whose data is to be updated.
+     * @param input A file containing the new data for the object.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void updateObjectData(SyncServiceMetaData metaData, File input)
             throws SyncServiceException, IOException {
@@ -259,12 +268,12 @@ public class SyncServiceClient {
     }
 
     /**
-     * Fetch an object's data and return it as a byte array
+     * Fetch an object's data and return it as a byte array.
      *
-     * @param metaData
-     * @return byte[]
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object whose data is to be fetched.
+     * @return The object's data
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public byte[] fetchObjectData(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         final String METHOD = "fetchObjectData";
@@ -285,13 +294,12 @@ public class SyncServiceClient {
     }
 
     /**
-     * Fetch an object's data and write it to a file
+     * Fetch an object's data and write it to a file.
      *
-     * @param metaData
-     * @param file
-     * @return void
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object whose data is to be fetched.
+     * @param file The File object of the file to which the object's data will be written.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void fetchObjectData(SyncServiceMetaData metaData, File file)
             throws SyncServiceException, IOException {
@@ -324,13 +332,12 @@ public class SyncServiceClient {
         }
     }
 
-    /***
-     * Delete an object
+    /**
+     * Delete an object.
      *
-     * @param metaData
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object that will be deleted.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void deleteObject(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         final String METHOD = "deleteObject";
@@ -348,63 +355,58 @@ public class SyncServiceClient {
         }
     }
 
-    /***
-     * Activate an object
+    /**
+     * Activate an object.
      *
-     * @param metaData
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object that will be activated.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void activateObject(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         operationHelper(metaData, "activate");
     }
 
-    /***
-     * Mark an object as being consumed
+    /**
+     * Mark an object as having been consumed.
      *
-     * @param metaData
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object that will be marked as having been consumed.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void markObjectConsumed(SyncServiceMetaData metaData)
             throws SyncServiceException, IOException {
         operationHelper(metaData, "consumed");
     }
 
-    /***
-     * Mark an object as being deleted
+    /**
+     * Mark an object as having been deleted.
      *
-     * @param metaData
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object that will be marked as having been deleted.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void markObjectDeleted(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         operationHelper(metaData, "deleted");
     }
 
-    /***
-     * Mark an object as being received
+    /**
+     * Mark an object as having been received.
      *
-     * @param metaData
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object that will be marked as having been received.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void markObjectReceived(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         operationHelper(metaData, "received");
     }
 
-    /***
-     * Perform an "operation" on an object
+    /**
+     * Perform an "operation" on an object.
      *
-     * @param metaData
-     * @param operation
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param metaData The metadata of the object on which the operation will be performed.
+     * @param operation The operation to perform.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     private void operationHelper(SyncServiceMetaData metaData, String operation)
             throws SyncServiceException, IOException {
@@ -424,37 +426,38 @@ public class SyncServiceClient {
         }
     }
 
-    /***
-     * Register a Webhook callback when an object is updated
+    /**
+     * Register a Webhook callback when an object is updated.
      *
-     * @param objectType
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param objectType The object type on which to register a web hook.
+     * @param url The URL of the web hook to be registered.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void registerWebHook(String objectType, URL url) throws SyncServiceException, IOException {
         webHookHelper("register", objectType, url);
     }
 
-    /***
-     * Delete a Webhook callback
+    /**
+     * Delete a Webhook callback.
      *
-     * @param objectType
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param objectType The object type whose web hook will be deleted.
+     * @param url The URL of the webhook to delete.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     public void deleteWebHook(String objectType, URL url) throws SyncServiceException, IOException {
         webHookHelper("delete", objectType, url);
     }
 
-    /***
-     * Register a Webhook callback when an object is updated
+    /**
+     * A helper method for managing Webhook callbacks, used when an object is updated.
      *
-     * @param objectType
-     * @return
-     * @throws SyncServiceException
-     * @throws IOException
+     * @param operation The operation being performed (delete/register)
+     * @param objectType The object on whom a web hook is being managed.
+     * @param url The URL of the web hook being managed.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
      */
     private void webHookHelper(String operation, String objectType, URL url)
             throws SyncServiceException, IOException {
@@ -522,6 +525,7 @@ public class SyncServiceClient {
                 @Body RequestBody requestBody);
     }
 
+    /** The builder class used to create an instance of {@link SyncServiceClient SyncServiceClient} object */
     public static class Builder {
         private URL url;
         private BasicAuthInterceptor authInterceptor;
@@ -543,59 +547,116 @@ public class SyncServiceClient {
             }
         }
 
+        /**
+         * Sets the base URL that will be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param url The URL to use as the SyncServiceClient's base URL.
+         * @return this
+         */
         public Builder withUrl(URL url) {
             this.url = url;
             return this;
         }
 
+        /**
+         * Set the app key and app secret to be used by the built {@link SyncServiceClient SyncServiceClient}
+         *             object.
+         * @param appKey The app key.
+         * @param appSecret The app secret.
+         * @return this
+         */
         public Builder withAppKeyAndAppSecret(String appKey, String appSecret) {
             authInterceptor = new BasicAuthInterceptor(appKey, appSecret);
             return this;
         }
 
+        /**
+         * Set the organization ID to be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param orgID The organization ID.
+         * @return this
+         */
         public Builder withOrgID(String orgID) {
             this.orgID = orgID;
             return this;
         }
 
+        /**
+         * Set the SSLContext to be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param sslContext The SSLContext.
+         * @return this
+         */
         public Builder withSslContext(SSLContext sslContext) {
             this.sslContext = sslContext;
             return this;
         }
 
+        /**
+         * Set the X509TrustManager to be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param trustManager The X509TrustManager.
+         * @return this
+         */
         public Builder withTrustManager(X509TrustManager trustManager) {
             this.trustManager = trustManager;
             return this;
         }
 
+        /**
+         * Set the HostnameVerifier to be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param hostnameVerifier The HostnameVerifier.
+         * @return this
+         */
         public Builder withHostnameVerifier(HostnameVerifier hostnameVerifier) {
             this.hostnameVerifier = hostnameVerifier;
             return this;
         }
 
+        /**
+         * Set the connect timeout to be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param timeoutMillis The connect timeout in milli-seconds.
+         * @return this
+         */
         public Builder withConnectTimeoutMillis(long timeoutMillis) {
             checkArgument(timeoutMillis >= 0, NEGATIVEVALUE);
             this.connectTimeoutMillis = timeoutMillis;
             return this;
         }
 
+        /**
+         * Set the read timeout to be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param timeoutMillis The read timeout in milli-seconds.
+         * @return this
+         */
         public Builder withReadTimeoutMillis(long timeoutMillis) {
             checkArgument(timeoutMillis >= 0, NEGATIVEVALUE);
             this.readTimeoutMillis = timeoutMillis;
             return this;
         }
 
+        /**
+         * Set the write timeout to be used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param timeoutMillis The write timeout in milli-seconds.
+         * @return this
+         */
         public Builder withWriteTimeoutMillis(long timeoutMillis) {
             checkArgument(timeoutMillis >= 0, NEGATIVEVALUE);
             this.writeTimeoutMillis = timeoutMillis;
             return this;
         }
 
+        /**
+         * Add a {@link okhttp3.Interceptor Interceptor} to the {@link okhttp3.OkHttpClient OkHttpClient}
+         *            used by the built {@link SyncServiceClient SyncServiceClient} object.
+         * @param interceptor The Interceptor to add.
+         * @return this
+         */
         public Builder withInterceptor(Interceptor interceptor) {
             this.interceptor = interceptor;
             return this;
         }
 
+        /**
+         * Actually build the {@link SyncServiceClient SyncServiceClient} object.
+         * @return A {@link SyncServiceClient SyncServiceClient} object
+         */
         public SyncServiceClient build() {
             OkHttpClient okHttpClient = createOkHttpClient();
 
@@ -604,6 +665,11 @@ public class SyncServiceClient {
             return new SyncServiceClient(url, orgID, mapper, okHttpClient);
         }
 
+        /**
+         * Helper method to build the {@link okhttp3.OkHttpClient OkHttpClient} used by the built
+         *       {@link SyncServiceClient SyncServiceClient} object
+         * @return A {@link okhttp3.OkHttpClient OkHttpClient}
+         */
         private OkHttpClient createOkHttpClient() {
             final OkHttpClient.Builder builder = new OkHttpClient.Builder();
 

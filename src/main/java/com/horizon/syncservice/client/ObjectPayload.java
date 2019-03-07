@@ -1,5 +1,8 @@
 package com.horizon.syncservice.client;
 
+/**
+ * An internal class used in sending payloads for various Sync Service APIs
+ */
 class ObjectPayload {
     
     private SyncServiceMetaData meta;

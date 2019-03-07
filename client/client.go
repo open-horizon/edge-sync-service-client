@@ -171,7 +171,7 @@ type Destination struct {
 
 // DestinationStatus provides information about the delivery status of an object for a certain destination.
 // The status can be one of the following:
-//   pending - inidicates that the object is pending delivery to this destination
+//   pending - indicates that the object is pending delivery to this destination
 //   delivering - indicates that the object is being delivered to this destination
 //   delivered - indicates that the object was delivered to this destination
 //   consumed - indicates that the object was consumed by this destination
@@ -206,7 +206,7 @@ type ObjectStatus struct {
 }
 
 const (
-	// DestStatusPending inidicates that the object is pending delivery to this destination
+	// DestStatusPending indicates that the object is pending delivery to this destination
 	DestStatusPending = "pending"
 
 	// DestStatusDelivering indicates that the object is being delivered to this destination

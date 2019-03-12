@@ -28,7 +28,9 @@ type SyncServiceClient struct {
 	appKeySecretSet   bool
 	appKey            string
 	appSecret         string
+	ticker            *time.Ticker
 	updatesPollerStop chan bool
+	inflightUpdates   map[string]bool
 	pollerCount       int
 	httpTransport     *http.Transport
 	httpClient        http.Client
@@ -148,6 +150,10 @@ type ObjectMetaData struct {
 	// Deleted is a flag indicating to applications polling for updates that this object has been deleted.
 	// Read only field, should not be set by users.
 	Deleted bool `json:"deleted"`
+
+	// InstanceID is an internal instance ID.
+	// This field should not be set by users.
+	InstanceID int64 `json:"instanceID"`
 }
 
 // Destination describes a sync service node.
@@ -333,7 +339,8 @@ func (syncClient *SyncServiceClient) StartPollingForUpdates(objectType string, r
 }
 
 func (syncClient *SyncServiceClient) updatesPoller(objectType string, rate int, updatesChannel chan *ObjectMetaData) {
-	ticker := time.NewTicker(time.Duration(rate) * time.Second)
+	syncClient.inflightUpdates = make(map[string]bool)
+	syncClient.ticker = time.NewTicker(time.Duration(rate) * time.Second)
 	firstPoll := true
 	url := syncClient.createObjectURL(objectType, "", "")
 
@@ -342,13 +349,19 @@ func (syncClient *SyncServiceClient) updatesPoller(objectType string, rate int, 
 		case <-syncClient.updatesPollerStop:
 			return
 
-		case <-ticker.C:
+		case <-syncClient.ticker.C:
 			ok := syncClient.poll(url, firstPoll, updatesChannel)
 			if ok {
 				firstPoll = false
 			}
 		}
 	}
+}
+
+// StopPollingForUpdates stops the polling of the sync service for updates.
+func (syncClient *SyncServiceClient) StopPollingForUpdates() {
+	syncClient.ticker.Stop()
+	syncClient.updatesPollerStop <- true
 }
 
 func (syncClient *SyncServiceClient) poll(url string, firstPoll bool, updatesChannel chan *ObjectMetaData) bool {
@@ -365,10 +378,22 @@ func (syncClient *SyncServiceClient) poll(url string, firstPoll bool, updatesCha
 		return false
 	}
 
+	previousInflightUpdates := syncClient.inflightUpdates
+	syncClient.inflightUpdates = make(map[string]bool)
+
 	if objects != nil {
 		for _, object := range objects {
-			object := object // Make a local copy
-			updatesChannel <- &object
+			inflightKey := object.ObjectType + ":" + object.OriginID + ":" + string(object.InstanceID)
+			if _, ok := previousInflightUpdates[inflightKey]; !ok {
+				object := object // Make a local copy
+				updatesChannel <- &object
+			}
+		}
+
+		// Clean up inflight objects, remove all that aren't in the current poll, by rebuilding it.
+		for _, object := range objects {
+			inflightKey := object.ObjectType + ":" + object.OriginID + ":" + string(object.InstanceID)
+			syncClient.inflightUpdates[inflightKey] = true
 		}
 	}
 	return true

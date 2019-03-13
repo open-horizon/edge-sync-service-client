@@ -378,21 +378,19 @@ func (syncClient *SyncServiceClient) poll(url string, firstPoll bool, updatesCha
 		return false
 	}
 
+	// Save the old map for the check below
 	previousInflightUpdates := syncClient.inflightUpdates
+
+	// Clean up inflight objects, remove all that aren't in the current poll, by rebuilding it.
 	syncClient.inflightUpdates = make(map[string]bool)
 
 	if objects != nil {
 		for _, object := range objects {
-			inflightKey := object.ObjectType + ":" + object.OriginID + ":" + string(object.InstanceID)
+			inflightKey := fmt.Sprintf("%s:%s:%d", object.ObjectType, object.ObjectID, object.InstanceID)
 			if _, ok := previousInflightUpdates[inflightKey]; !ok {
 				object := object // Make a local copy
 				updatesChannel <- &object
 			}
-		}
-
-		// Clean up inflight objects, remove all that aren't in the current poll, by rebuilding it.
-		for _, object := range objects {
-			inflightKey := object.ObjectType + ":" + object.OriginID + ":" + string(object.InstanceID)
 			syncClient.inflightUpdates[inflightKey] = true
 		}
 	}

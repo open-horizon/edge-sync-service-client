@@ -50,27 +50,11 @@ public class ObjectStatus {
     }
 
     /**
-     * Set the orgnization ID of the object being delivered to the destination in question.
-     * @param orgID The new value of the orgnization ID of the object being delivered.
-     */
-    public void setOrgID(String orgID) {
-        this.orgID = orgID;
-    }
-
-    /**
      * Get the type of the object being delivered to the destination in question.
      * @return The type of the object being delivered to the destination in question.
      */
     public String getObjectType() {
         return objectType;
-    }
-
-    /**
-     * Set the type of the object being delivered to the destination in question.
-     * @param objectType The new value of the type of the object being delivered.
-     */
-    public void setObjectType(String objectType) {
-        this.objectType = objectType;
     }
 
     /**
@@ -82,14 +66,6 @@ public class ObjectStatus {
     }
 
     /**
-     * Set the ID of the object being delivered to the destination in question.
-     * @param objectID The new value of the ID of the object being delivered.
-     */
-    public void setObjectID(String objectID) {
-        this.objectID = objectID;
-    }
-
-    /**
      * Get the status of the delivery of the object described here to the destination in question.
      * <p>The status can be {@link ObjectStatus#PENDING PENDING}, {@link ObjectStatus#DELIVERING DELIVERING}, 
      *        {@link ObjectStatus#DELIVERED DELIVERED}, {@link ObjectStatus#CONSUMED CONSUMED},
@@ -98,16 +74,5 @@ public class ObjectStatus {
      */
     public String getStatus() {
         return status;
-    }
-
-    /**
-     * Set the status of the delivery of the object described here to the destination in question.
-     * <p>The status can be {@link ObjectStatus#PENDING PENDING}, {@link ObjectStatus#DELIVERING DELIVERING}, 
-     *        {@link ObjectStatus#DELIVERED DELIVERED}, {@link ObjectStatus#CONSUMED CONSUMED},
-     *        or {@link ObjectStatus#ERROR ERROR}.
-     * @param status The new value of the status of the delivery to this destination of the object.
-     */
-    public void setStatus(String status) {
-        this.status = status;
     }
 }

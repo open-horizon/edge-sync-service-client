@@ -50,8 +50,8 @@ public class SendFile {
             SyncServiceMetaData metaData = new SyncServiceMetaData();
             metaData.setObjectType("send-file");
             metaData.setObjectID(parts[parts.length-1] + "@-" + destType + "-" + destID);
-            metaData.setDestinationType(destType);
-            metaData.setDestinationID(destID);
+            metaData.setDestType(destType);
+            metaData.setDestID(destID);
             metaData.setVersion("0.0.1");
 
             SyncServiceClient syncClient =
@@ -80,13 +80,10 @@ public class SendFile {
         Options options = new Options();
 
         options.addOption("org", "orgID", true, "Specify the organization ID of the destination to send the file to (optional)");
-        options.getOption("orgID").setRequired(true);
 
         options.addOption("dt", "destType", true, "Specify the destination type to send the file to.");
-        options.getOption("destType").setRequired(true);
 
         options.addOption("id", "destID", true, "Specify the destination ID to send the file to");
-        options.getOption("destID").setRequired(true);
 
         options.addOption("f", "fileName", true, "Specify the file to send");
         options.getOption("fileName").setRequired(true);
@@ -111,9 +108,9 @@ public class SendFile {
                 System.exit(0);
             }
     
-            orgID = cmd.getOptionValue("orgID");
-            destType = cmd.getOptionValue("destType");
-            destID = cmd.getOptionValue("destID");
+            orgID = cmd.getOptionValue("orgID", "");
+            destType = cmd.getOptionValue("destType", "");
+            destID = cmd.getOptionValue("destID", "");
             fileName = cmd.getOptionValue("fileName");
 
             serverProtocol = cmd.getOptionValue("serverProtocol", "https");

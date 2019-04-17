@@ -1,1 +1,1 @@
-""" Package of edge-sync-service Pthon samples """
+""" Package of edge-sync-service Python samples """

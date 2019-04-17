@@ -14,6 +14,7 @@ public class Destination {
     private String destinationType;
     private String destinationID;
     private String communication;
+    private String codeVersion;
 
     /**
      * Get the destination's organization ID.
@@ -26,31 +27,12 @@ public class Destination {
     }
 
     /**
-     * Set the destination's organization ID.
-     * <p>destinationOrgID is the destination's organization ID.
-	 * <p>Each sync service object belongs to a single organization.
-     * @param destinationOrgID The new value of the destination's destinationOrgID.
-     */
-    public void setDestinationOrgID(String destinationOrgID) {
-        this.destinationOrgID = destinationOrgID;
-    }
-
-    /**
      * Get the destinations's destinationType.
      * <p>destinationType is the destination's type.
      * @return The destinations's destinationType.
      */
     public String getDestinationType() {
         return destinationType;
-    }
-
-    /**
-     * Set the destinations's destinationType.
-     * <p>destinationType is the destination's type.
-     * @param destinationType The new value of the destination's destinationType.
-     */
-    public void setDestinationType(String destinationType) {
-        this.destinationType = destinationType;
     }
 
     /**
@@ -63,15 +45,6 @@ public class Destination {
     }
 
     /**
-     * Set the destination's destination ID.
-     * <p>destinationID is the destination's ID.
-     * @param destinationID The new value of the destination's destinationID.
-     */
-    public void setDestinationID(String destinationID) {
-        this.destinationID = destinationID;
-    }
-
-    /**
      * Get the destination's form of communication with the CSS.
      * <p>communication is the communications method used by the destination to connect (can be MQTT or HTTP)
      * @return The destination's form of communication with the CSS (mqtt or mqtt).
@@ -81,11 +54,10 @@ public class Destination {
     }
 
     /**
-     * Set the destination's form of communication with the CSS.
-     * <p>communication is the communications method used by the destination to connect (can be MQTT or HTTP)
-     * @param communication The new value of the destination's form of communication with the CSS (mqtt or mqtt).
+     * Get the sync service code version used by the destination.
+     * @return The sync service code version used by the destination.
      */
-    public void setCommunication(String communication) {
-        this.communication = communication;
+    public String getCodeVersion() {
+        return codeVersion;
     }
 }

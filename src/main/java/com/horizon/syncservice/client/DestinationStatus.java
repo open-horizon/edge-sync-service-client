@@ -50,27 +50,11 @@ public class DestinationStatus {
     }
 
     /**
-     * Set the type of this destination of the object.
-     * @param destinationType The new value of the type of this destination of the object.
-     */
-    public void setDestinationType(String destinationType) {
-        this.destinationType = destinationType;
-    }
-
-    /**
      * Get the ID of this destination of the object.
      * @return The ID of this destination of the object.
      */
     public String getDestinationID() {
         return destinationID;
-    }
-    
-    /**
-     * Set the ID of this destination of the object.
-     * @param destinationID The new value of the ID of this destination of the object.
-     */
-    public void setDestinationID(String destinationID) {
-        this.destinationID = destinationID;
     }
 
     /**
@@ -86,30 +70,10 @@ public class DestinationStatus {
     }
 
     /**
-     * Set the status of the delivery of the object to the destination described here.
-     * <p>The status can be {@link DestinationStatus#PENDING PENDING},
-     *        {@link DestinationStatus#DELIVERING DELIVERING}, 
-     *        {@link DestinationStatus#DELIVERED DELIVERED}, {@link DestinationStatus#CONSUMED CONSUMED},
-     *        or {@link DestinationStatus#ERROR ERROR}.
-     * @param status The new value of the status of the delivery to this destination of the object.
-     */
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    /**
      * Get the message related to the delivery of the object to this destination.
      * @return The message related to the delivery of the object to this destination.
      */
     public String getMessage() {
         return message;
-    }
-
-    /**
-     * Set the message related to the delivery of the object to this destination.
-     * @param message The new value of the message related to the delivery of the object to this destination.
-     */
-    public void setMessage(String message) {
-        this.message = message;
     }
 }

@@ -2,6 +2,7 @@ package com.horizon.syncservice.client;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /***
  * This class represents a Sync Service metadata object: <br>
@@ -11,8 +12,8 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
  * {
     "objectID": "string", 
 	"objectType": "string",						  
-    "destinationID": "string",						  
-    "destinationType": "string",
+    "destID": "string",						  
+    "destType": "string",
     "destinationsList": [ "string" ], 
     "expiration": "string",
 	"version": "string",
@@ -23,13 +24,14 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
     "doNotSend": false,
     "noData": false,
 	"metaOnly": false,
-	"consumers": 0,
+	"expectedConsumers": 1,
     "destinationDataUri": "string",
 	"sourceDataUri": "string",
-    "autodelete": bool,
+    "autodelete": false,
 	"deleted": false,
     "originID": "string",
-    "originType": "string"
+	"originType": "string",
+	"instanceID": 0
   }
   }
  * </pre>
@@ -39,17 +41,23 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 public class SyncServiceMetaData {
 
 	private String activationTime;
-	private boolean autodelete;
-	private int consumers;
+	@JsonProperty("autodelete")
+	private boolean autoDelete;
+	@JsonProperty("consumers")
+	private int expectedConsumers;
 	private boolean deleted;
 	private String description;
 	private String destinationDataUri;
-	private String destinationID;
+	@JsonProperty("destinationID")
+	private String destID;
+	private String destinationOrgID;
 	private String[] destinationsList;
-	private String destinationType;
+	@JsonProperty("destinationType")
+	private String destType;
 	private boolean doNotSend;
 	private String expiration;
 	private boolean inactive;
+	private int instanceID;
 	private String link;
 	private boolean metaOnly;
 	private boolean noData;
@@ -62,6 +70,7 @@ public class SyncServiceMetaData {
 
 	public SyncServiceMetaData() {
 		// Null Contructor
+		expectedConsumers = 1;
 	}
 
 	/**
@@ -89,16 +98,16 @@ public class SyncServiceMetaData {
 	}
 
 	/**
-	 * Get the object's autodelete flag.
+	 * Get the object's autoDelete flag.
 	 * <p>The autodelete flag indicates whether to delete the object after it is
      *             delivered to all its destinations from the destinations list.
 	 * <p>Optional field, default is false (do not delete).
 	 * <p>This field is used only when working with the CSS. Objects are always
      *              deleted after delivery on the ESS.
-	 * @return The object's autodelete flag.
+	 * @return The object's autoDelete flag.
 	 */
-	public boolean isAutodelete() {
-		return autodelete;
+	public boolean isAutoDelete() {
+		return autoDelete;
 	}
 
 	/**
@@ -108,10 +117,10 @@ public class SyncServiceMetaData {
 	 * <p>Optional field, default is false (do not delete).
 	 * <p>This field is used only when working with the CSS. Objects are always
      *              deleted after delivery on the ESS.
-	 * @param autodelete The new value of the autodelete flag.
+	 * @param autoDelete The new value of the autoDelete flag.
 	 */
-	public void setAutodelete(boolean autodelete) {
-		this.autodelete = autodelete;
+	public void setAutoDelete(boolean autoDelete) {
+		this.autoDelete = autoDelete;
 	}
 
 	/**
@@ -123,40 +132,31 @@ public class SyncServiceMetaData {
      *                is always used on the ESS.
 	 * @return The number of expected consumers of this object.
 	 */
-	public int getConsumers() {
-		return consumers;
+	public int getExpectedConsumers() {
+		return expectedConsumers;
 	}
 
 	/**
 	 * Set the number of expected consumers of this object.
-	 * <p>consumers is the number of applications that are expected to indicate
+	 * <p>expectedConsumers is the number of applications that are expected to indicate
      *                that they have consumed the object.
 	 * <p>Optional field, default is 1.
 	 * <p>This field is used only when working with the CSS. The default value
      *                is always used on the ESS.
-	 * @param consumers The number of expected consumers of this object.
+	 * @param expectedConsumers The number of expected consumers of this object.
 	 */
-	public void setConsumers(int consumers) {
-		this.consumers = consumers;
+	public void setExpectedConsumers(int expectedConsumers) {
+		this.expectedConsumers = expectedConsumers;
 	}
 
 	/**
 	 * Get the object's deleted flag.
 	 * <p>The deleted flag indicates to applications polling for updates that
      *           this object has been deleted.
-	 * <p>Read only field, should not be set by users.
 	 * @return The object's deleted flag.
 	 */
 	public boolean isDeleted() {
 		return deleted;
-	}
-
-	/**
-	 * Set the object's deleted flag.
-	 * @param deleted The new value of the object's deleted flag.
-	 */
-	public void setDeleted(boolean deleted) {
-		this.deleted = deleted;
 	}
 
 	/**
@@ -179,26 +179,36 @@ public class SyncServiceMetaData {
 		this.description = description;
 	}
 
-	/** Get the destinationID.
-	 * <p>destinationID is the ID of the destination. If omitted the object is sent
+	/** Get the destID.
+	 * <p>destID is the ID of the destination. If omitted the object is sent
      *           to all ESSs with the same destination type.
 	 * <p>This field is ignored when working with ESS (the destination is the CSS).
-	 * @return The destinationID.        
+	 * @return The destID.        
 	 */
-	public String getDestinationID() {
-		return destinationID;
+	public String getDestID() {
+		return destID;
 	}
 
 	/**
-	 * Set the destinationID.
-	 * <p>destinationID is the ID of the destination. If omitted the object is sent
+	 * Set the destID.
+	 * <p>destID is the ID of the destination. If omitted the object is sent
      *           to all ESSs with the same destination type.
 	 * <p>This field is ignored when working with ESS (the destination is the CSS).
-	 * @param destinationID The destinationID to set in the object's metadata.
+	 * @param destID The destID to set in the object's metadata.
 	 */
-	public void setDestinationID(String destinationID) {
-		this.destinationID = destinationID;
+	public void setDestID(String destID) {
+		this.destID = destID;
 	}
+
+	/**
+     * Get the destination organization ID.
+     * <p>destinationOrgID is the destination's organization ID.
+	 * <p>Each sync service object belongs to a single organization.
+     * @return The destination organization ID
+     */
+    public String getDestinationOrgID() {
+        return destinationOrgID;
+    }
 
 	/**
 	 * Get the destinationsList.
@@ -222,27 +232,27 @@ public class SyncServiceMetaData {
 		this.destinationsList = destinationsList;
 	}
 
-	/** Get the destinationType.
-	 * <p>destinationType is the type of destination to send the object to.
+	/** Get the destType.
+	 * <p>destType is the type of destination to send the object to.
 	 * <p>If omitted (and if destinations_list is omitted too) the object is broadcasted
      *            to all known destinations.
 	 * <p>This field is ignored when working with ESS (the destination is always the CSS).
-	 * @return The destinationType.
+	 * @return The destType.
 	 */
-	public String getDestinationType() {
-		return destinationType;
+	public String getDestType() {
+		return destType;
 	}
 
 	/**
-	 * Set the destinationType.
-	 * <p>destinationType is the type of destination to send the object to.
+	 * Set the destType.
+	 * <p>destType is the type of destination to send the object to.
 	 * <p>If omitted (and if destinations_list is omitted too) the object is broadcasted
      *            to all known destinations.
 	 * <p>This field is ignored when working with ESS (the destination is always the CSS).
-	 * @param destinationType The destinationType to set in the object's metadata.
+	 * @param destType The destType to set in the object's metadata.
 	 */
-	public void setDestinationType(String destinationType) {
-		this.destinationType = destinationType;
+	public void setDestType(String destType) {
+		this.destType = destType;
 	}
 
 	/**
@@ -296,6 +306,7 @@ public class SyncServiceMetaData {
 	 * <p>expiration is a timestamp/date indicating when the object expires.
 	 * <p>When the object expires it is automatically deleted.
 	 * <p>The timestamp should be provided in RFC3339 format.
+	 * <p>This field is available only when working with the CSS.
 	 * <p>Optional field, if omitted the object doesn't expire.
 	 * @return The object's expiration time.
 	 */
@@ -308,6 +319,7 @@ public class SyncServiceMetaData {
 	 * <p>expiration is a timestamp/date indicating when the object expires.
 	 * <p>When the object expires it is automatically deleted.
 	 * <p>The timestamp should be provided in RFC3339 format.
+	 * <p>This field is available only when working with the CSS.
 	 * <p>Optional field, if omitted the object doesn't expire.
 	 * @param expiration The expiration time o be set in the object's metadata.
 	 */
@@ -337,6 +349,14 @@ public class SyncServiceMetaData {
 	 */
 	public void setInactive(boolean inactive) {
 		this.inactive = inactive;
+	}
+
+	/**
+	 * InstanceID is an internal instance ID.
+	 * @return The object's instance ID
+	 */
+	public int getInstanceID() {
+		return instanceID;
 	}
 
 	/**
@@ -455,15 +475,6 @@ public class SyncServiceMetaData {
 		return originID;
 	}
 
-    /**
-	 * Get the object's originID.
-	 * <p>For internal use only.
-	 * @param originID The new value for the object's originID.
-	 */
-	public void setOriginID(String originID) {
-		this.originID = originID;
-	}
-
 	/**
 	 * Get the object's objectType.
 	 * <p>originType is the type of origin of the object. Set by the internal code.
@@ -472,15 +483,6 @@ public class SyncServiceMetaData {
 	 */
 	public String getOriginType() {
 		return originType;
-	}
-
-	/**
-	 * Set the object's objectType.
-	 * <p>For internal use only.
-	 * @param originType The new value for the object's originType.
-	 */
-	public void setOriginType(String originType) {
-		this.originType = originType;
 	}
 
 	/**
@@ -534,25 +536,26 @@ public class SyncServiceMetaData {
 		String newLine = System.getProperty("line.separator");
 
 		result.append(this.getClass().getName() + " Object {" + newLine);
-		result.append(" activationTime:" + getActivationTime());
-		result.append(" consumers:" + getConsumers());
-		result.append(" deleted:" + isDeleted());
-		result.append(" description:" + getDescription());
-		result.append(" destinationID:" + getDestinationID());
-		result.append(" destinationType:" + getDestinationType());
-		result.append(" destinationDataUri:" + getDestinationDataUri());
-		result.append(" doNotSend:" + isDoNotSend());
-		result.append(" expiration:" + getExpiration());
-		result.append(" inactive:" + isInactive());
-		result.append(" link:" + getLink());
-		result.append(" metaOnly:" + isMetaOnly());
-		result.append(" noData:" + isNoData());
-		result.append(" objectID:" + getObjectID());
-		result.append(" objectType:" + getObjectType());
-		result.append(" originID:" + getOriginID());
-		result.append(" originType:" + getOriginType());
-		result.append(" sourceDataUri:" + getSourceDataUri());
-		result.append(" version:" + getVersion());
+		result.append(" activationTime:" + getActivationTime() + newLine);
+		result.append(" autoDelete:" + isAutoDelete() + newLine);
+		result.append(" expectedConsumers:" + getExpectedConsumers() + newLine);
+		result.append(" deleted:" + isDeleted() + newLine);
+		result.append(" description:" + getDescription() + newLine);
+		result.append(" destinationID:" + getDestID() + newLine);
+		result.append(" destinationType:" + getDestType() + newLine);
+		result.append(" destinationDataUri:" + getDestinationDataUri() + newLine);
+		result.append(" doNotSend:" + isDoNotSend() + newLine);
+		result.append(" expiration:" + getExpiration() + newLine);
+		result.append(" inactive:" + isInactive() + newLine);
+		result.append(" link:" + getLink() + newLine);
+		result.append(" metaOnly:" + isMetaOnly() + newLine);
+		result.append(" noData:" + isNoData() + newLine);
+		result.append(" objectID:" + getObjectID() + newLine);
+		result.append(" objectType:" + getObjectType() + newLine);
+		result.append(" originID:" + getOriginID() + newLine);
+		result.append(" originType:" + getOriginType() + newLine);
+		result.append(" sourceDataUri:" + getSourceDataUri() + newLine);
+		result.append(" version:" + getVersion() + newLine);
 		result.append("}");
 
 		return result.toString();

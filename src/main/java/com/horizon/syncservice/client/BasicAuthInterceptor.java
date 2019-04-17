@@ -7,10 +7,10 @@ import okhttp3.Interceptor;
 import okhttp3.Request;
 import okhttp3.Response;
 
-public class BasicAuthInterceptor implements Interceptor {
+class BasicAuthInterceptor implements Interceptor {
     private String credentials;
 
-    public BasicAuthInterceptor(String appKey, String appSecret) {
+    BasicAuthInterceptor(String appKey, String appSecret) {
         this.credentials = Credentials.basic(appKey, appSecret);
     }
 

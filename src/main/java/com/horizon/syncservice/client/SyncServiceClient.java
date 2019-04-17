@@ -26,18 +26,14 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
+import okhttp3.Interceptor;
 import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
-import okhttp3.Interceptor;
 import retrofit2.Call;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.jackson.JacksonConverterFactory;
-import retrofit2.http.Body;
-import retrofit2.http.DELETE;
-import retrofit2.http.GET;
-import retrofit2.http.PUT;
-import retrofit2.http.Path;
+import retrofit2.converter.scalars.ScalarsConverterFactory;
 
 /**
  * Client for Sync-Service
@@ -53,28 +49,34 @@ public class SyncServiceClient {
     public static final String DEFAULT_HTTP_HOST = "localhost";
     public static final int DEFAULT_HTTP_PORT = 8080;
 
+    private static final String DESTINATION_ACL = "destinations";
+	private static final String OBJECT_ACL = "objects";
+
     private final String orgID;
-    private final Api api;
+    private final RetrofitHelper api;
 
     private SyncServiceClient(URL url, String orgID, ObjectMapper mapper, OkHttpClient httpClient) {
         this.orgID = orgID;
         Retrofit retrofit = new Retrofit.Builder().baseUrl(url.toExternalForm())
-                .addConverterFactory(JacksonConverterFactory.create(mapper)).client(httpClient).build();
-        this.api = retrofit.create(Api.class);
+                .addConverterFactory(ScalarsConverterFactory.create())
+                .addConverterFactory(JacksonConverterFactory.create(mapper))
+                .client(httpClient)
+                .build();
+        this.api = new RetrofitHelper(orgID, retrofit);
     }
 
     /**
      * Get the list of destinations in the organization of the sync client.
      * 
      * @return A List of {@link Destination Destination} class objects.
-     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws SyncServiceException If an error was returned from the Sync Service.
      * @throws IOException If an I/O error occurred.
      */
     public List<Destination> getDestinations()
             throws SyncServiceException, IOException {
         final String METHOD = "getDestinations";
         try {
-            Response<List<Destination>> response = api.getDestinations(orgID).execute();
+            Response<List<Destination>> response = api.getDestinations().execute();
             if (response.isSuccessful()) {
                 List<Destination> result = response.body();
                 return result;
@@ -105,7 +107,7 @@ public class SyncServiceClient {
             throws SyncServiceException, IOException {
         final String METHOD = "getDestinationObjects";
         try {
-            Response<List<ObjectStatus>> response = api.getDestinationObjects(orgID, destType, destID).execute();
+            Response<List<ObjectStatus>> response = api.getDestinationObjects(destType, destID).execute();
             if (response.isSuccessful()) {
                 List<ObjectStatus> result = response.body();
                 return result;
@@ -140,7 +142,7 @@ public class SyncServiceClient {
         final String METHOD = "updateObject";
         try {
             ObjectPayload payload = new ObjectPayload(metaData);
-            Response<Void> response = api.putObject(orgID, metaData.getObjectType(), metaData.getObjectID(), payload)
+            Response<Void> response = api.putObject(metaData.getObjectType(), metaData.getObjectID(), payload)
                     .execute();
             if (!response.isSuccessful()) {
                 String message = String.format("Failed to update the object %s:%s:%s. Error: %s", orgID,
@@ -167,7 +169,7 @@ public class SyncServiceClient {
             throws SyncServiceException, IOException {
         final String METHOD = "getUpdatedObjects";
         try {
-            Response<List<SyncServiceMetaData>> response = api.getUpdatedObjects(orgID, objectType, received).execute();
+            Response<List<SyncServiceMetaData>> response = api.getUpdatedObjects(objectType, received).execute();
             if (response.isSuccessful()) {
                 List<SyncServiceMetaData> metaData = response.body();
                 return metaData;
@@ -198,7 +200,7 @@ public class SyncServiceClient {
             throws SyncServiceException, IOException {
         final String METHOD = "getObjectDestinations";
         try {
-            Response<List<DestinationStatus>> response = api.getObjectDestinations(orgID, objectType, objectID).execute();
+            Response<List<DestinationStatus>> response = api.getObjectDestinations(objectType, objectID).execute();
             if (response.isSuccessful()) {
                 List<DestinationStatus> result = response.body();
                 return result;
@@ -216,6 +218,37 @@ public class SyncServiceClient {
     }
 
     /**
+     * Get the status of an object that was sent
+     * 
+     * @param objectType The object type of the object whose status will be retrieved.
+     * @param objectID The object ID of the object whose status will be retrieved.
+     * @return A String indicating the status of the object. See the class {@link ObjectStatus ObjectStatus} 
+     *                 for the list of possible values.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     */
+    public String getObjectStatus(String objectType, String objectID)
+            throws SyncServiceException, IOException {
+        final String METHOD = "getObjectStatus";
+        try {
+            Response<String> response = api.getObjectStatus(objectType, objectID).execute();
+            if (response.isSuccessful()) {
+                String result = response.body();
+                return result;
+            } else if (response.code() == HttpURLConnection.HTTP_NOT_FOUND) {
+                return "";
+            } else {
+                String message = String.format("Failed to get the status of the object %s:%s%s. Error: %s",
+                        orgID, objectType, objectID, response.errorBody().string());
+                throw new SyncServiceException(message);
+            }
+        } catch (IOException ex) {
+            LOGGER.logp(Level.SEVERE, CLASS_NAME, METHOD, "IOException from getObjectStatus", ex);
+            throw ex;
+        }
+    }
+
+    /**
      * Update an object's data from an array of bytes.
      * 
      * @param metaData The metadata of the object whose data is to be updated.
@@ -228,7 +261,7 @@ public class SyncServiceClient {
         final String METHOD = "updateObjectData";
         try {
             RequestBody body = RequestBody.create(MediaType.parse("application/octet-stream"), input);
-            Response<Void> response = api.putObjectData(orgID, metaData.getObjectType(), metaData.getObjectID(), body)
+            Response<Void> response = api.putObjectData(metaData.getObjectType(), metaData.getObjectID(), body)
                     .execute();
             if (!response.isSuccessful()) {
                 String message = String.format("Failed to update the object data %s:%s:%s. Error: %s", orgID,
@@ -254,7 +287,7 @@ public class SyncServiceClient {
         final String METHOD = "updateObjectData";
         try {
             RequestBody body = RequestBody.create(MediaType.parse("application/octet-stream"), input);
-            Response<Void> response = api.putObjectData(orgID, metaData.getObjectType(), metaData.getObjectID(), body)
+            Response<Void> response = api.putObjectData(metaData.getObjectType(), metaData.getObjectID(), body)
                     .execute();
             if (!response.isSuccessful()) {
                 String message = String.format("Failed to update the object %s:%s:%s. Error: %s", orgID,
@@ -278,7 +311,7 @@ public class SyncServiceClient {
     public byte[] fetchObjectData(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         final String METHOD = "fetchObjectData";
         try {
-            Response<ResponseBody> response = api.getObjectData(orgID, metaData.getObjectType(), metaData.getObjectID())
+            Response<ResponseBody> response = api.getObjectData( metaData.getObjectType(), metaData.getObjectID())
                     .execute();
             if (!response.isSuccessful()) {
                 String message = String.format("Failed to delete the object %s:%s:%s. Error: %s", orgID,
@@ -305,7 +338,7 @@ public class SyncServiceClient {
             throws SyncServiceException, IOException {
         final String METHOD = "fetchObjectData";
         try {
-            Response<ResponseBody> response = api.getObjectData(orgID, metaData.getObjectType(), metaData.getObjectID())
+            Response<ResponseBody> response = api.getObjectData(metaData.getObjectType(), metaData.getObjectID())
                     .execute();
             if (!response.isSuccessful()) {
                 String message = String.format("Failed to delete the object %s:%s:%s. Error: %s", orgID,
@@ -342,7 +375,7 @@ public class SyncServiceClient {
     public void deleteObject(SyncServiceMetaData metaData) throws SyncServiceException, IOException {
         final String METHOD = "deleteObject";
         try {
-            Response<Void> response = api.deleteObject(orgID, metaData.getObjectType(), metaData.getObjectID())
+            Response<Void> response = api.deleteObject(metaData.getObjectType(), metaData.getObjectID())
                     .execute();
             if (!response.isSuccessful()) {
                 String message = String.format("Failed to delete the object %s:%s:%s. Error: %s", orgID,
@@ -413,7 +446,7 @@ public class SyncServiceClient {
         final String METHOD = "operationHelper";
         try {
             Response<Void> response = api
-                    .objectOperation(orgID, metaData.getObjectType(), metaData.getObjectID(), operation).execute();
+                    .objectOperation(metaData.getObjectType(), metaData.getObjectID(), operation).execute();
             if (!response.isSuccessful()) {
                 String message = String.format("Failed to perform the operation %s the object %s:%s:%s. Error: %s",
                         operation, orgID, metaData.getObjectType(), metaData.getObjectID(),
@@ -461,7 +494,7 @@ public class SyncServiceClient {
      */
     private void webHookHelper(String operation, String objectType, URL url)
             throws SyncServiceException, IOException {
-        final String METHOD = "registerWebHook";
+        final String METHOD = "webHookHelper";
         try {
             StringBuffer body = new StringBuffer(400);
             body.append("{\n");
@@ -471,64 +504,248 @@ public class SyncServiceClient {
 
             RequestBody requestBody = RequestBody.create(MediaType.parse("application/json"),
                     body.toString().getBytes(Charset.forName("utf-8")));
-            Response<Void> response = api.registerWebHook(orgID, objectType, requestBody).execute();
+            Response<Void> response = api.registerWebHook(objectType, requestBody).execute();
             if (!response.isSuccessful()) {
-                String message = String.format("Failed to register the webhook for %s:%s. Error: %s", orgID, objectType,
+                String message = String.format("Failed to %s the webhook for %s:%s. Error: %s", operation, orgID, objectType,
                         response.errorBody().string());
                 throw new SyncServiceException(message);
             }
         } catch (IOException ex) {
-            LOGGER.logp(Level.SEVERE, CLASS_NAME, METHOD, "IOException from registerWebHook", ex);
+            LOGGER.logp(Level.SEVERE, CLASS_NAME, METHOD, "IOException from webHookHelper", ex);
             throw ex;
         }
     }
 
-    interface Api {
+    /**
+     * Resend requests that all objects in the Sync Service be resent to an ESS.
+     * Used by an ESS to ask the CSS to resend it all the objects (supported only for ESS to CSS requests).
+     * An application only needs to use this API in case the data it previously obtained from the ESS was lost.
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     */
+    public void resend() throws SyncServiceException, IOException {
+        final String METHOD = "resend";
+        try {
+            Response<Void> response = api.resend().execute();
+            if (!response.isSuccessful()) {
+                String message = String.format("Failed to request all objects to be resent. Error: %s",
+                        response.errorBody().string());
+                throw new SyncServiceException(message);
+            }
+        } catch (IOException ex) {
+            LOGGER.logp(Level.SEVERE, CLASS_NAME, METHOD, "IOException from resend", ex);
+            throw ex;
+        }
+    }
 
-        @GET("/api/v1/destinations/{orgID}")
-        Call<List<Destination>> getDestinations(@Path("orgID") String orgID);
+    /**
+     * AddUsersToDestinationACL adds users to an ACL protecting a destination type.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @param destType The destination type whose ACL is having usernames added to it.
+     * @param usernames An array of the usernames to add to the specified ACL.
+     * 
+     * Note: Adding the first user to such an ACL automatically creates it.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     * 
+     * Note: This API is for use with a CSS only.
+     */
+    public void addUsersToDestinationACL(String destType, String[] usernames) throws SyncServiceException, IOException {
+        modifySecurityHelper(true, DESTINATION_ACL, destType, usernames);
+    }
 
-        @GET("/api/v1/destinations/{orgID}/{destType}/{destID}/objects")
-        Call<List<ObjectStatus>> getDestinationObjects(@Path("orgID") String orgID,
-                @Path("destType") String destType, @Path("destID") String destID);
+    /**
+     * RemoveUsersFromDestinationACL removes users from an ACL protecting a destination type.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @param destType The destination type whose ACL is having usernames removed from it..
+     * @param usernames An array of the usernames to remove from the specified ACL.
+     * 
+     * Note: Removing the last user from such an ACL automatically deletes it.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     * 
+     * Note: This API is for use with a CSS only.
+     */
+    public void removeUsersFromDestinationACL(String destType, String[] usernames) throws SyncServiceException, IOException {
+	    modifySecurityHelper(false, DESTINATION_ACL, destType, usernames);
+    }
 
-        @GET("/api/v1/objects/{orgID}/{objectType}?received={received}")
-        Call<List<SyncServiceMetaData>> getUpdatedObjects(@Path("orgID") String orgID,
-                @Path("objectType") String objectType, @Path("received") boolean received);
+    /**
+     * RetrieveDestinationACL retrieves the list of users with access to a destination type protected by an ACL.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @param destType The destination type from whose ACL the list of usernames should be retrieved.
+     * 
+     * @return A list of strings representing the usernames with access to the destination type protected by the ACL in question.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     * 
+     * Note: This API is for use with a CSS only.
+     */
+    public List<String> retrieveDestinationACL(String destType) throws SyncServiceException, IOException {
+	    return retrieveACLHelper(DESTINATION_ACL, destType);
+    }
 
-        @GET("/api/v1/objects/{orgID}/{objectType}/{objectID}/data")
-        Call<ResponseBody> getObjectData(@Path("orgID") String orgID, @Path("objectType") String objectType,
-                @Path("objectID") String objectID);
+    /**
+     * RetrieveAllDestinationACLs retrieves the list of destination ACLs in the organization.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @return A list of strings representing the destination types for which ACLs exist.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     * 
+     * Note: This API is for use with a CSS only.
+     */
+    public List<String> retrieveAllDestinationACLs() throws SyncServiceException, IOException {
+	    return retrieveACLHelper(DESTINATION_ACL, "");
+    }
 
-        @GET("/api/v1/objects/{orgID}/{objectType}/{objectID}/destinations")
-        Call<List<DestinationStatus>> getObjectDestinations(@Path("orgID") String orgID,
-                @Path("objectType") String objectType, @Path("objectID") String objectID);
+    /**
+     * AddUsersToObjectACL adds users to an ACL protecting an object type.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @param objectType The object type whose ACL is having usernames added to it.
+     * @param usernames An array of the usernames to add to the specified ACL.
+     * 
+     * Note: Adding the first user to such an ACL automatically creates it.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     */
+    public void addUsersToObjectACL(String objectType, String[] usernames) throws SyncServiceException, IOException {
+	    modifySecurityHelper(true, OBJECT_ACL, objectType, usernames);
+    }
 
-        @PUT("/api/v1/objects/{orgID}/{objectType}/{objectID}")
-        Call<Void> putObject(@Path("orgID") String orgID, @Path("objectType") String objectType,
-                @Path("objectID") String objectID, @Body ObjectPayload payload);
+    /**
+     * RemoveUsersFromObjectACL removes users from an ACL protecting an object type.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @param objectType The object type whose ACL is having usernames removed from it.
+     * @param usernames An array of the usernames to remove from the specified ACL.
+     * 
+     * Note: Removing the last user from such an ACL automatically deletes it.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     */
+    public void removeUsersFromObjectACL(String objectType, String[] usernames) throws SyncServiceException, IOException {
+	    modifySecurityHelper(false, OBJECT_ACL, objectType, usernames);
+    }
 
-        @PUT("/api/v1/objects/{orgID}/{objectType}/{objectID}/data")
-        Call<Void> putObjectData(@Path("orgID") String orgID, @Path("objectType") String objectType,
-                @Path("objectID") String objectID, @Body RequestBody requestBody);
+    /**
+     * RetrieveObjectACL retrieves the list of users with access to an object type protected by an ACL.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @param objectType The object type from whose ACL the list of usernames should be retrieved.
+     * 
+     * @return A list of strings representing the usernames with access to the object type protected by the ACL in question.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     */
+    public List<String> retrieveObjectACL(String objectType) throws SyncServiceException, IOException {
+	    return retrieveACLHelper(OBJECT_ACL, objectType);
+    }
 
-        @PUT("/api/v1/objects/{orgID}/{objectType}/{objectID}/{operation}")
-        Call<Void> objectOperation(@Path("orgID") String orgID, @Path("objectType") String objectType,
-                @Path("objectID") String objectID, @Path("operation") String operation);
+    /**
+     * RetrieveAllObjectACLs retrieves the list of object ACLs in the organization.
+     * 
+     * For more information on the sync service's security model see:
+     * <a href="https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security">https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security</a>
+     * 
+     * @return A list of strings representing the object types for which ACLs exist.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     */
+    public List<String> retrieveAllObjectACLs() throws SyncServiceException, IOException {
+	    return retrieveACLHelper(OBJECT_ACL, "");
+    }
 
-        @DELETE("/api/v1/objects/{orgID}/{objectType}/{objectID}")
-        Call<Void> deleteObject(@Path("orgID") String orgID, @Path("objectType") String objectType,
-                @Path("objectID") String objectID);
+    /**
+     * modifySecurityHelper is helper for modifying ACLs.
+     * 
+     * @param key       The key of the ACL that is having usernames added/removed to/from it.
+     * @param usernames An array of the usernames to add/remove to/from the specified ACL.
+     * 
+     * @throws SyncServiceException If an error was returned from the Sync Server.
+     * @throws IOException If an I/O error occurred.
+     */
+    protected void modifySecurityHelper(boolean add, String aclType, String key, String[] usernames) throws SyncServiceException, IOException {
+        final String METHOD = "modifySecurityHelper";
+        String mesageInsert = add ? "to" : "from";
+        try {
+            ACLBulkPayload payload = new ACLBulkPayload(add ? "add" : "remove", usernames);
+            Response<Void> response = api.securityUpdate(aclType, key, payload).execute();
+            if (!response.isSuccessful()) {
+                String message = String.format("Failed to %s usernames %s the %s ACL %s. Error: %s", 
+                        payload.getAction(), mesageInsert, aclType, key, response.errorBody().string());
+                throw new SyncServiceException(message);
+            }
+        } catch (IOException ex) {
+            LOGGER.logp(Level.SEVERE, CLASS_NAME, METHOD, "IOException from modifySecurityHelper", ex);
+            throw ex;
+        }
+    }
 
-        @PUT("/api/v1/objects/{orgID}/{objectType}")
-        Call<Void> registerWebHook(@Path("orgID") String orgID, @Path("objectType") String objectType,
-                @Body RequestBody requestBody);
+    /**
+     * retrieveACLHelper is a helper for retrieving ACL information
+     */
+    private List<String> retrieveACLHelper(String aclType, String key) throws SyncServiceException, IOException {
+        final String METHOD = "getUpdatedObjects";
+        try {
+            Call<List<String>> call;
+            if (key.equals("")) {
+                call = api.retrieveAllACLs(aclType);
+            }
+            else {
+                call = api.retrieveACL(aclType, key);
+            }
+
+            Response<List<String>> response = call.execute();            
+            if (response.isSuccessful()) {
+                List<String> metaData = response.body();
+                return metaData;
+            } else if (response.code() == HttpURLConnection.HTTP_NOT_FOUND) {
+                return new ArrayList<String>();
+            } else {
+                String message = key.equals("") ?
+                            String.format("Failed to get the %s ACL for %s. Error: %s",
+                                            aclType, key, response.errorBody().string()) :
+                            String.format("Failed to get all of the %s ACLs. Error: %s",
+                                            response.errorBody().string());
+                throw new SyncServiceException(message);
+            }
+        } catch (IOException ex) {
+            LOGGER.logp(Level.SEVERE, CLASS_NAME, METHOD, "IOException from getUpdatedObjects", ex);
+            throw ex;
+        }
     }
 
     /** The builder class used to create an instance of {@link SyncServiceClient SyncServiceClient} object */
     public static class Builder {
         private URL url;
-        private BasicAuthInterceptor authInterceptor;
+        private Interceptor authInterceptor;
         private String orgID;
         private SSLContext sslContext;
         private X509TrustManager trustManager;
@@ -542,6 +759,7 @@ public class SyncServiceClient {
         public Builder() {
             try {
                 url = new URL(DEFAULT_HTTP_PROTOCOL, DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT, "");
+                orgID = "";
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }
@@ -560,6 +778,8 @@ public class SyncServiceClient {
         /**
          * Set the app key and app secret to be used by the built {@link SyncServiceClient SyncServiceClient}
          *             object.
+         * <p>The app key and app secret are used to authenticate with the Sync Service that the client is
+         * communicating with. The exact details of the app key and app secret depend on the Sync Service's configuration.
          * @param appKey The app key.
          * @param appSecret The app secret.
          * @return this

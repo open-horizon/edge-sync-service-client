@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,7 +29,9 @@ type SyncServiceClient struct {
 	appKeySecretSet   bool
 	appKey            string
 	appSecret         string
+	ticker            *time.Ticker
 	updatesPollerStop chan bool
+	inflightUpdates   map[string]bool
 	pollerCount       int
 	httpTransport     *http.Transport
 	httpClient        http.Client
@@ -42,9 +45,9 @@ func (e *syncServiceError) Error() string {
 	return e.message
 }
 
-// ObjectMetaData is the metadata that identifies and defines the sync service object.
+// ObjectMetaData is the metadata that identifies and defines the Sync Service object.
 // Every object includes metadata (mandatory) and data (optional). The metadata and data can be updated independently.
-// Each sync service node (ESS) has an address that is composed of the node's ID, Type, and Organization.
+// Each Sync Service node (ESS) has an address that is composed of the node's ID, Type, and Organization.
 // To send an object to a single node set the DestType and DestID fields to match the node's Type and ID.
 // To send an object to all the nodes of a certain type set DestType to the appropriate type and leave DestID empty.
 // If both DestType and DestID are empty the object is sent to all nodes.
@@ -77,6 +80,7 @@ type ObjectMetaData struct {
 	// Expiration is a timestamp/date indicating when the object expires.
 	// When the object expires it is automatically deleted.
 	// The timestamp should be provided in RFC3339 format.
+	// This field is available only when working with the CSS.
 	// Optional field, if omitted the object doesn't expire.
 	Expiration string `json:"expiration"`
 
@@ -148,15 +152,19 @@ type ObjectMetaData struct {
 	// Deleted is a flag indicating to applications polling for updates that this object has been deleted.
 	// Read only field, should not be set by users.
 	Deleted bool `json:"deleted"`
+
+	// InstanceID is an internal instance ID.
+	// This field should not be set by users.
+	InstanceID int64 `json:"instanceID"`
 }
 
-// Destination describes a sync service node.
-// Each sync service edge node (ESS) has an address that is composed of the node's ID, Type, and Organization.
+// Destination describes a Sync Service node.
+// Each Sync Service edge node (ESS) has an address that is composed of the node's ID, Type, and Organization.
 // An ESS node communicates with the CSS using either MQTT or HTTP.
 type Destination struct {
 
 	// DestOrgID is the destination organization ID
-	// Each sync service object belongs to a single organization
+	// Each Sync Service object belongs to a single organization
 	DestOrgID string `json:"destinationOrgID"`
 
 	// DestType is the destination type
@@ -167,6 +175,9 @@ type Destination struct {
 
 	// Communication is the communications method used by the destination to connect (can be MQTT or HTTP)
 	Communication string `json:"communication"`
+
+	// CodeVersion is the sync service code version used by the destination
+	CodeVersion string `json:"codeVersion"`
 }
 
 // DestinationStatus provides information about the delivery status of an object for a certain destination.
@@ -227,17 +238,23 @@ const (
 	// ObjectStatusReady indicates that the object is ready to be sent to destinations.
 	ObjectStatusReady = "ready"
 
-	// ObjectStatusReceived indicates that the object's metadata has been received but not all its data.
-	ObjectStatusReceived = "received"
+	// ObjectStatusPartiallyReceived indicates that the object's metadata has been received but not all its data.
+	ObjectStatusPartiallyReceived = "partiallyreceived"
 
 	// ObjectStatusCompletelyReceived indicates that the full object (metadata and data) has been received.
 	ObjectStatusCompletelyReceived = "completelyReceived"
 
 	// ObjectStatusConsumed indicates that the object has been consumed by the application.
-	ObjectStatusConsumed = "consumed"
+	ObjectStatusConsumed = "objconsumed"
 
 	// ObjectStatusDeleted indicates that the object was deleted.
-	ObjectStatusDeleted = "deleted"
+	ObjectStatusDeleted = "objdeleted"
+
+	// ObjectStatusReceived indicates that the object was received by the application.
+	ObjectStatusReceived = "objreceived"
+
+	// ObjectStatusConsumedByDest indicates that the object was consumed by the other side.
+	ObjectStatusConsumedByDest = "consumedByDest"
 )
 
 type objectUpdatePayload struct {
@@ -249,18 +266,30 @@ type webhookUpdate struct {
 	URL    string `json:"url"`
 }
 
+type bulkACLPayload struct {
+	Action    string   `json:"action"`
+	Usernames []string `json:"usernames"`
+}
+
 const (
 	destinationsPath = "/api/v1/destinations"
 	objectsPath      = "/api/v1/objects/"
 	resendPath       = "/api/v1/resend"
+	securityPath     = "/api/v1/security/"
+)
+
+const (
+	destinationACL = "destinations"
+	objectACL      = "objects"
 )
 
 // NewSyncServiceClient creates a new sync-service client instance.
-// serviceProtocol defines the protocol used to connect to the sync service. It should be either "https", "http", or "unix".
+// serviceProtocol defines the protocol used to connect to the Sync Service.
+// It should be either "https", "http", "unix", or "secure-unix".
 // If serviceProtocol is either "https" or "http", serviceAddress and servicePort specify the address and listening port of
-// the sync service, respectively.
-// If serviceProtocol is "unix", serviceAddress should contain the socket file used by the ESS, servicePort can be zero.
-// Note: The serviceProtocol can be "unix", only when communicating with an ESS.
+// the Sync Service, respectively.
+// If serviceProtocol is "unix" or "secure-unix", serviceAddress should contain the socket file used by the ESS, servicePort can be zero.
+// Note: The serviceProtocol can be "unix" or "secure-unix", only when communicating with an ESS.
 // The function returns a handle to the new client instance.
 func NewSyncServiceClient(serviceProtocol string, serviceAddress string, servicePort uint16) *SyncServiceClient {
 	client := SyncServiceClient{}
@@ -300,7 +329,10 @@ func (syncClient *SyncServiceClient) SetOrgID(orgID string) {
 }
 
 // SetAppKeyAndSecret sets the app key and app secret to be used when communicating
-// with Sync Service
+// with Sync Service.
+//
+// The app key and app secret are used to authenticate with the Sync Service that the client is
+// communicating with. The exact details of the app key and app secret depend on the Sync Service's configuration.
 func (syncClient *SyncServiceClient) SetAppKeyAndSecret(key, secret string) {
 	syncClient.appKey = key
 	syncClient.appSecret = secret
@@ -321,8 +353,8 @@ func (syncClient *SyncServiceClient) SetCACertificate(certPem string) error {
 	return nil
 }
 
-// StartPollingForUpdates starts the polling of the sync service for updates.
-// Each invocation creates a Go routine that periodically polls the sync service for new update for a specific objectType.
+// StartPollingForUpdates starts the polling of the Sync Service for updates.
+// Each invocation creates a Go routine that periodically polls the Sync Service for new update for a specific objectType.
 // objectType specifies the type of objects the client should retrieve updates for.
 // rate is the period, in seconds, between poll requests.
 // updatesChannel is a channel on which the application receives the updates (as ObjectMetaData).
@@ -333,7 +365,8 @@ func (syncClient *SyncServiceClient) StartPollingForUpdates(objectType string, r
 }
 
 func (syncClient *SyncServiceClient) updatesPoller(objectType string, rate int, updatesChannel chan *ObjectMetaData) {
-	ticker := time.NewTicker(time.Duration(rate) * time.Second)
+	syncClient.inflightUpdates = make(map[string]bool)
+	syncClient.ticker = time.NewTicker(time.Duration(rate) * time.Second)
 	firstPoll := true
 	url := syncClient.createObjectURL(objectType, "", "")
 
@@ -342,13 +375,19 @@ func (syncClient *SyncServiceClient) updatesPoller(objectType string, rate int, 
 		case <-syncClient.updatesPollerStop:
 			return
 
-		case <-ticker.C:
+		case <-syncClient.ticker.C:
 			ok := syncClient.poll(url, firstPoll, updatesChannel)
 			if ok {
 				firstPoll = false
 			}
 		}
 	}
+}
+
+// StopPollingForUpdates stops the polling of the Sync Service for updates.
+func (syncClient *SyncServiceClient) StopPollingForUpdates() {
+	syncClient.ticker.Stop()
+	syncClient.updatesPollerStop <- true
 }
 
 func (syncClient *SyncServiceClient) poll(url string, firstPoll bool, updatesChannel chan *ObjectMetaData) bool {
@@ -365,10 +404,20 @@ func (syncClient *SyncServiceClient) poll(url string, firstPoll bool, updatesCha
 		return false
 	}
 
+	// Save the old map for the check below
+	previousInflightUpdates := syncClient.inflightUpdates
+
+	// Clean up inflight objects, remove all that aren't in the current poll, by rebuilding it.
+	syncClient.inflightUpdates = make(map[string]bool)
+
 	if objects != nil {
 		for _, object := range objects {
-			object := object // Make a local copy
-			updatesChannel <- &object
+			inflightKey := fmt.Sprintf("%s:%s:%d:%s", object.ObjectType, object.ObjectID, object.InstanceID, strconv.FormatBool(object.Deleted))
+			if _, ok := previousInflightUpdates[inflightKey]; !ok {
+				object := object // Make a local copy
+				updatesChannel <- &object
+			}
+			syncClient.inflightUpdates[inflightKey] = true
 		}
 	}
 	return true
@@ -541,7 +590,7 @@ func (syncClient *SyncServiceClient) FetchObjectData(object *ObjectMetaData, wri
 	return true
 }
 
-// ActivateObject tells the sync service to mark an object as active.
+// ActivateObject tells the Sync Service to mark an object as active.
 // object is the metadata of the object that should be activated.
 // Only objects that were created as inactive need to be activated, see ObjectMetaData.Inactive.
 // Returns nil on success or an error if any is encountered.
@@ -561,9 +610,9 @@ func (syncClient *SyncServiceClient) ActivateObject(object *ObjectMetaData) erro
 	return err
 }
 
-// MarkObjectConsumed tells the sync service to mark an object consumed.
+// MarkObjectConsumed tells the Sync Service to mark an object consumed.
 // object is the metadata of the object that should marked consumed.
-// After an object is marked as consumed it will not be delivered to the application again (even if the app or the sync service are restarted).
+// After an object is marked as consumed it will not be delivered to the application again (even if the app or the Sync Service are restarted).
 // Returns nil on success or an error if any is encountered.
 func (syncClient *SyncServiceClient) MarkObjectConsumed(object *ObjectMetaData) error {
 	body, err := syncClient.operationHelper(object, "consumed")
@@ -600,7 +649,7 @@ func (syncClient *SyncServiceClient) MarkObjectDeleted(object *ObjectMetaData) e
 	return err
 }
 
-// MarkObjectReceived tells the sync service to mark an object received.
+// MarkObjectReceived tells the Sync Service to mark an object received.
 // object is the metadata of the object that should be marked received.
 // After an object is marked as received it will not be delivered to the application again, unless the app restarts polling for updates.
 // Returns nil on success or an error if any is encountered.
@@ -645,9 +694,9 @@ func (syncClient *SyncServiceClient) webhookHelper(action string, objectType str
 	return nil
 }
 
-// RegisterWebhook registers a webhook to receive updates from the sync service.
+// RegisterWebhook registers a webhook to receive updates from the Sync Service.
 // objectType specifies the type of objects the client should retrieve updates for.
-// url is the URL that should be called by the sync service when a new update is available
+// url is the URL that should be called by the Sync Service when a new update is available
 // Returns nil on success or an error if any was encountered
 func (syncClient *SyncServiceClient) RegisterWebhook(objectType string, url string) error {
 	return syncClient.webhookHelper("register", objectType, url)
@@ -679,7 +728,7 @@ func (syncClient *SyncServiceClient) operationHelper(object *ObjectMetaData, ope
 	return "", nil
 }
 
-// UpdateObject creates/updates an object in the sync service
+// UpdateObject creates/updates an object in the Sync Service
 // object specifies the object's metadata
 // The application must provide the ObjectID and ObjectType which uniquely identify the object.
 // When creating/updating an object in the CSS the application must also provide either DestID and DestType or DestinationsList.
@@ -711,7 +760,7 @@ func (syncClient *SyncServiceClient) UpdateObject(object *ObjectMetaData) error 
 	return nil
 }
 
-// UpdateObjectData updates the data of an object in the sync service
+// UpdateObjectData updates the data of an object in the Sync Service
 // object is the object's metadata (the one used to create the object in UpdateObject)
 // reader is an I/O reader from which to read the object's data
 // Note that the object's data can be updated multiple times without updating the metadata
@@ -757,7 +806,7 @@ func (syncClient *SyncServiceClient) DeleteObject(objectType string, objectID st
 	return nil
 }
 
-// Resend requests that all objects in the sync service be resent to an ESS.
+// Resend requests that all objects in the Sync Service be resent to an ESS.
 // Used by an ESS to ask the CSS to resend it all the objects (supported only for ESS to CSS requests).
 // An application only needs to use this API in case the data it previously obtained from the ESS was lost.
 // Returns nil on success or an error if any was encountered
@@ -777,6 +826,145 @@ func (syncClient *SyncServiceClient) Resend() error {
 		return &syncServiceError{fmt.Sprintf("Failed to request a resend of all of the objects. Error: %s\n", bodyAsString(response.Body))}
 	}
 	return nil
+}
+
+// AddUsersToDestinationACL adds users to an ACL protecting a destination type.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Note: Adding the first user to such an ACL automatically creates it.
+//
+// Note: This API is for use with a CSS only.
+func (syncClient *SyncServiceClient) AddUsersToDestinationACL(destType string, usernames []string) error {
+	return syncClient.modifySecurityHelper(true, destinationACL, destType, usernames)
+}
+
+// RemoveUsersFromDestinationACL removes users from an ACL protecting a destination type.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Note: Removing the last user from such an ACL automatically deletes it.
+//
+// Note: This API is for use with a CSS only.
+func (syncClient *SyncServiceClient) RemoveUsersFromDestinationACL(destType string, usernames []string) error {
+	return syncClient.modifySecurityHelper(false, destinationACL, destType, usernames)
+}
+
+// RetrieveDestinationACL retrieves the list of users with access to a destination type protected by an ACL.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Returns a tuple of a slice of strings and an error. The error will be nil if the operation succeeded.
+//
+// Note: This API is for use with a CSS only.
+func (syncClient *SyncServiceClient) RetrieveDestinationACL(destType string) ([]string, error) {
+	return syncClient.retrieveACLHelper(destinationACL, destType)
+}
+
+// RetrieveAllDestinationACLs retrieves the list of destination ACLs in the organization.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Returns a tuple of a slice of strings and an error. The error will be nil if the operation succeeded.
+//
+// Note: This API is for use with a CSS only.
+func (syncClient *SyncServiceClient) RetrieveAllDestinationACLs() ([]string, error) {
+	return syncClient.retrieveACLHelper(destinationACL, "")
+}
+
+// AddUsersToObjectACL adds users to an ACL protecting an object type.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Note: Adding the first user to such an ACL automatically creates it.
+func (syncClient *SyncServiceClient) AddUsersToObjectACL(objectType string, usernames []string) error {
+	return syncClient.modifySecurityHelper(true, objectACL, objectType, usernames)
+}
+
+// RemoveUsersFromObjectACL removes users from an ACL protecting an object type.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Note: Removing the last user from such an ACL automatically deletes it.
+func (syncClient *SyncServiceClient) RemoveUsersFromObjectACL(objectType string, usernames []string) error {
+	return syncClient.modifySecurityHelper(false, objectACL, objectType, usernames)
+}
+
+// RetrieveObjectACL retrieves the list of users with access to an object type protected by an ACL.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Returns a tuple of a slice of strings and an error. The error will be nil if the operation succeeded.
+func (syncClient *SyncServiceClient) RetrieveObjectACL(objectType string) ([]string, error) {
+	return syncClient.retrieveACLHelper(objectACL, objectType)
+}
+
+// RetrieveAllObjectACLs retrieves the list of object ACLs in the organization.
+//
+// For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
+//
+// Returns a tuple of a slice of strings and an error. The error will be nil if the operation succeeded.
+func (syncClient *SyncServiceClient) RetrieveAllObjectACLs() ([]string, error) {
+	return syncClient.retrieveACLHelper(objectACL, "")
+}
+
+func (syncClient *SyncServiceClient) modifySecurityHelper(add bool, aclType string, key string, usernames []string) error {
+	action := "remove"
+	messageInsert := "from"
+	if add {
+		action = "add"
+		messageInsert = "to"
+	}
+
+	payload := bulkACLPayload{action, usernames}
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	urlString := fmt.Sprintf("%s://%s%s%s/%s/%s", syncClient.serviceProtocol, syncClient.serviceAddress, securityPath, aclType, syncClient.orgID, key)
+	payloadBuffer := bytes.NewBuffer(payloadJSON)
+	request, err := syncClient.newRequestHelper(http.MethodPut, urlString, payloadBuffer)
+	if err != nil {
+		return err
+	}
+
+	response, err := syncClient.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return &syncServiceError{fmt.Sprintf("Failed to %s the user(s) %s the ACL for %s. Error: %s\n",
+			action, messageInsert, key, bodyAsString(response.Body))}
+	}
+	return nil
+}
+
+func (syncClient *SyncServiceClient) retrieveACLHelper(aclType string, key string) ([]string, error) {
+	urlString := fmt.Sprintf("%s://%s%s%s/%s", syncClient.serviceProtocol, syncClient.serviceAddress, securityPath, aclType, syncClient.orgID)
+	if len(key) != 0 {
+		urlString += "/" + key
+	}
+	var result []string
+
+	err := syncClient.fetchInfoHelper(urlString, &result)
+	if err != nil {
+		if log.IsLogging(logger.ERROR) {
+			if len(key) != 0 {
+				log.Error("Failed to retrieve the %s ACL %s. Error: %s\n", aclType, key, err)
+			} else {
+				log.Error("Failed to retrieve all of the %s ACLs. Error: %s\n", aclType, err)
+			}
+		}
+		return nil, err
+	}
+	if result == nil {
+		result = make([]string, 0)
+	}
+
+	return result, nil
 }
 
 func bodyAsString(body io.Reader) string {

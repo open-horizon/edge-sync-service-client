@@ -3,6 +3,7 @@
 import getopt
 import os
 import sys
+import time
 
 if sys.path[0] != '':
     sys.path.insert(0, sys.path[0]+"/../")
@@ -23,15 +24,18 @@ def receive_callback(meta_data):
 
 protocol = "http"
 server = "localhost:8080"
+org_id = ""
 cert = ""
 key = ""
 secret = ""
-opts, args = getopt.getopt(sys.argv[1:], "p:s:", ["cert=", "key=", "secret="])
+opts, args = getopt.getopt(sys.argv[1:], "p:s:", ["org=", "cert=", "key=", "secret="])
 for opt, value in opts:
     if opt == "-p":
         protocol = value
     elif opt == "-s":
         server = value
+    elif opt == "--org":
+        org_id = value
     elif opt == "--cert":
         cert = value
     elif opt == "--key":
@@ -55,6 +59,8 @@ else:
 
 sync_client = SyncServiceClient.Client(protocol, host, port)
 
+if org_id != "":
+    sync_client.set_org_id(org_id)
 if cert != "":
     sync_client.set_ca_certificate(cert)
 if key != "":
@@ -64,5 +70,8 @@ if key != "":
 sync_client.start_polling_for_updates("send-file", 5, receive_callback)
 
 user_input = raw_input("Press enter to exit\n")
+    
+sync_client.stop_polling_for_updates()
+time.sleep(5)
 
 sys.exit(0)

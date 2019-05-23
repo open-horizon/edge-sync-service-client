@@ -42,6 +42,11 @@ public class ObjectStatus {
     public final static String PENDING = "pending";
 
     /**
+     * Indicates that this destination acknowledged the deletion of the object.
+     */
+    public final static String DELETED = "deleted";
+
+    /**
      * Get the orgnization ID of the object being delivered to the destination in question.
      * @return The orgnization ID of the object being delivered to the destination in question.
      */

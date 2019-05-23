@@ -56,6 +56,7 @@ type Destination = common.Destination
 //   delivering - indicates that the object is being delivered to this destination
 //   delivered - indicates that the object was delivered to this destination
 //   consumed - indicates that the object was consumed by this destination
+//   deleted - indicates that this destination acknowledged the deletion of the object
 //   error - indicates that a feedback error message was received from this destination
 type DestinationStatus = common.DestinationsStatus
 
@@ -74,6 +75,9 @@ const (
 
 	// DestStatusConsumed indicates that the object was consumed at this destination
 	DestStatusConsumed = "consumed"
+
+	// DestStatusDeleted indicates that this destination acknowledged the deletion of the object
+	DestStatusDeleted = "deleted"
 
 	// DestStatusError indicates that there was an error in delivering the object to this destination
 	DestStatusError = "error"

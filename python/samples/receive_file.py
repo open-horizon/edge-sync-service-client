@@ -1,3 +1,5 @@
+""" Python equivalent of the Go receive_file """
+
 import getopt
 import os
 import sys

@@ -52,12 +52,13 @@ type Destination = common.Destination
 
 // DestinationStatus provides information about the delivery status of an object for a certain destination.
 // The status can be one of the following:
-//   pending - indicates that the object is pending delivery to this destination
-//   delivering - indicates that the object is being delivered to this destination
-//   delivered - indicates that the object was delivered to this destination
-//   consumed - indicates that the object was consumed by this destination
-//   deleted - indicates that this destination acknowledged the deletion of the object
-//   error - indicates that a feedback error message was received from this destination
+//
+//	pending - indicates that the object is pending delivery to this destination
+//	delivering - indicates that the object is being delivered to this destination
+//	delivered - indicates that the object was delivered to this destination
+//	consumed - indicates that the object was consumed by this destination
+//	deleted - indicates that this destination acknowledged the deletion of the object
+//	error - indicates that a feedback error message was received from this destination
 type DestinationStatus = common.DestinationsStatus
 
 // ObjectStatus provides information about an object that is destined for a particular destination
@@ -164,7 +165,8 @@ func SetConfig(config common.Config) {
 }
 
 // EnableSyncServiceAPIs enables the serving of the RESTful Sync Service APIs
-//              when running embedded in an app.
+//
+//	when running embedded in an app.
 //
 // Note: By default the Sync Service RESTful APIs are NOT served when running embedded in an app.
 //
@@ -181,11 +183,11 @@ func SetAuthenticator(auth security.Authentication) {
 }
 
 // Stop stops the embedded Sync Service
-func (syncClient *SyncServiceClient) Stop(quiesceTime int) {
+func (syncClient *SyncServiceClient) Stop(quiesceTime int, unregisterSelf bool) {
 	startupLock.Lock()
 
 	if syncServiceStarted {
-		base.Stop(quiesceTime)
+		base.Stop(quiesceTime, unregisterSelf)
 
 		<-syncClient.stoppingChannel
 
@@ -335,12 +337,14 @@ func (syncClient *SyncServiceClient) GetObjectMetadata(objectType string, object
 // GetObjectStatus returns the status of an object
 // Returns a string and an error. The error will be non-nil if an error encountered.
 // The string will have one of the following values:
-//   notReady - The object is not ready to be sent to the destination.
-//   ready - The object is ready to be sent but was not yet received by the destination.
-//   received - The destination received the object's metadata but not all its data.
-//   completelyReceived - The destination received the full object (metadata and data).
-//   consumed - The object was consumed by the application running on the destination.
-//   deleted - The object was deleted by the destination.
+//
+//	notReady - The object is not ready to be sent to the destination.
+//	ready - The object is ready to be sent but was not yet received by the destination.
+//	received - The destination received the object's metadata but not all its data.
+//	completelyReceived - The destination received the full object (metadata and data).
+//	consumed - The object was consumed by the application running on the destination.
+//	deleted - The object was deleted by the destination.
+//
 // Note: An empty string indicates that the object is not on the server
 func (syncClient *SyncServiceClient) GetObjectStatus(objectType string, objectID string) (string, error) {
 	var status string
@@ -439,8 +443,8 @@ func (syncClient *SyncServiceClient) MarkObjectConsumed(object *ObjectMetaData) 
 // MarkObjectDeleted tells the ESS to mark an object that was deleted on the CSS as having been deleted on the ESS.
 // object is the metadata of the object to be marked as deleted.
 // Returns nil on success or an error if any is encountered.
-func (syncClient *SyncServiceClient) MarkObjectDeleted(object *ObjectMetaData) error {
-	if err := base.ObjectDeleted(syncClient.orgID, object.ObjectType, object.ObjectID); err != nil {
+func (syncClient *SyncServiceClient) MarkObjectDeleted(serviceID string, object *ObjectMetaData) error {
+	if err := base.ObjectDeleted(serviceID, syncClient.orgID, object.ObjectType, object.ObjectID); err != nil {
 		if log.IsLogging(logger.ERROR) {
 			log.Error("Failed to mark the object %s:%s as deleted. Error: %s\n", object.ObjectType, object.ObjectID, err)
 		}
@@ -514,7 +518,7 @@ func (syncClient *SyncServiceClient) UpdateObject(object *ObjectMetaData) error 
 // Note that the object's data can be updated multiple times without updating the metadata
 // Returns nil on success or an error if any was encountered
 func (syncClient *SyncServiceClient) UpdateObjectData(object *ObjectMetaData, reader io.Reader) error {
-	found, err := base.PutObjectData(syncClient.orgID, object.ObjectType, object.ObjectID, reader)
+	found, err := base.PutObjectAllData(syncClient.orgID, object.ObjectType, object.ObjectID, reader)
 	if err != nil || !found {
 		var message string
 		if err != nil {
@@ -567,10 +571,11 @@ func (syncClient *SyncServiceClient) Resend() error {
 // Note: Adding the first user to such an ACL automatically creates it.
 //
 // Note: The ACLs mentioned here protect destination types used in RESTful APIs. They do not
-//       affect the use of destination types in embedded client API calls.
+//
+//	affect the use of destination types in embedded client API calls.
 //
 // Note: This API is for use with a CSS only.
-func (syncClient *SyncServiceClient) AddUsersToDestinationACL(destType string, usernames []string) error {
+func (syncClient *SyncServiceClient) AddUsersToDestinationACL(destType string, usernames []common.ACLentry) error {
 	return base.AddUsersToACL(destinationACL, syncClient.orgID, destType, usernames)
 }
 
@@ -581,10 +586,11 @@ func (syncClient *SyncServiceClient) AddUsersToDestinationACL(destType string, u
 // Note: Removing the last user from such an ACL automatically deletes it.
 //
 // Note: The ACLs mentioned here protect destination types used in RESTful APIs. They do not
-//       affect the use of destination types in embedded client API calls.
+//
+//	affect the use of destination types in embedded client API calls.
 //
 // Note: This API is for use with a CSS only.
-func (syncClient *SyncServiceClient) RemoveUsersFromDestinationACL(destType string, usernames []string) error {
+func (syncClient *SyncServiceClient) RemoveUsersFromDestinationACL(destType string, usernames []common.ACLentry) error {
 	return base.RemoveUsersFromACL(destinationACL, syncClient.orgID, destType, usernames)
 }
 
@@ -595,8 +601,8 @@ func (syncClient *SyncServiceClient) RemoveUsersFromDestinationACL(destType stri
 // Returns a tuple of a slice of strings and an error. The error will be nil if the operation succeeded.
 //
 // Note: This API is for use with a CSS only.
-func (syncClient *SyncServiceClient) RetrieveDestinationACL(destType string) ([]string, error) {
-	return base.RetrieveACL(destinationACL, syncClient.orgID, destType)
+func (syncClient *SyncServiceClient) RetrieveDestinationACL(destType string, aclUserType string) ([]common.ACLentry, error) {
+	return base.RetrieveACL(destinationACL, syncClient.orgID, destType, aclUserType)
 }
 
 // RetrieveAllDestinationACLs retrieves the list of destination ACLs in the organization.
@@ -617,8 +623,9 @@ func (syncClient *SyncServiceClient) RetrieveAllDestinationACLs() ([]string, err
 // Note: Adding the first user to such an ACL automatically creates it.
 //
 // Note: The ACLs mentioned here protect object types used in RESTful APIs. They do not
-//       affect the use of object types in embedded client API calls.
-func (syncClient *SyncServiceClient) AddUsersToObjectACL(objectType string, usernames []string) error {
+//
+//	affect the use of object types in embedded client API calls.
+func (syncClient *SyncServiceClient) AddUsersToObjectACL(objectType string, usernames []common.ACLentry) error {
 	return base.AddUsersToACL(objectACL, syncClient.orgID, objectType, usernames)
 }
 
@@ -629,8 +636,9 @@ func (syncClient *SyncServiceClient) AddUsersToObjectACL(objectType string, user
 // Note: Removing the last user from such an ACL automatically deletes it.
 //
 // Note: The ACLs mentioned here protect object types used in RESTful APIs. They do not
-//       affect the use of object types in embedded client API calls.
-func (syncClient *SyncServiceClient) RemoveUsersFromObjectACL(objectType string, usernames []string) error {
+//
+//	affect the use of object types in embedded client API calls.
+func (syncClient *SyncServiceClient) RemoveUsersFromObjectACL(objectType string, usernames []common.ACLentry) error {
 	return base.RemoveUsersFromACL(objectACL, syncClient.orgID, objectType, usernames)
 }
 
@@ -639,8 +647,8 @@ func (syncClient *SyncServiceClient) RemoveUsersFromObjectACL(objectType string,
 // For more information on the sync service's security model see: https://github.ibm.com/edge-sync-service-dev/edge-sync-service#security
 //
 // Returns a tuple of a slice of strings and an error. The error will be nil if the operation succeeded.
-func (syncClient *SyncServiceClient) RetrieveObjectACL(objectType string) ([]string, error) {
-	return base.RetrieveACL(objectACL, syncClient.orgID, objectType)
+func (syncClient *SyncServiceClient) RetrieveObjectACL(objectType string, aclUserType string) ([]common.ACLentry, error) {
+	return base.RetrieveACL(objectACL, syncClient.orgID, objectType, aclUserType)
 }
 
 // RetrieveAllObjectACLs retrieves the list of object ACLs in the organization.

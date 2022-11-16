@@ -1,3 +1,5 @@
+## This repository has been archived but remains available as a public reference
+
 # edge-sync-service-client
 A generic client SDK for the sync service
 

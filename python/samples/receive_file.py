@@ -14,12 +14,12 @@ def receive_callback(meta_data):
     parts = meta_data.object_id.split("@")
     if meta_data.deleted:
         os.remove("./" + parts[0])
-        print "Deleted " + parts[0]
+        print ("Deleted " + parts[0])
         sync_client.mark_object_deleted(meta_data)
     else:
         file = open("./" + parts[0], "w")
         if sync_client.fetch_object_data(meta_data, file):
-            print "Received " + parts[0]
+            print ("Received " + parts[0])
             sync_client.mark_object_consumed(meta_data)
 
 protocol = "http"
@@ -51,7 +51,7 @@ if protocol != "unix" and protocol != "secure-unix":
         if parts[1].isdigit():
             port = int(parts[1])
         else:
-            print "An invalid port number of ", parts[1], "was specified"
+            print ("An invalid port number of ", parts[1], "was specified")
             sys.exit(99)
 else:
     host = server
@@ -69,7 +69,7 @@ if key != "":
 
 sync_client.start_polling_for_updates("send-file", 5, receive_callback)
 
-user_input = raw_input("Press enter to exit\n")
+user_input = input("Press enter to exit\n")
     
 sync_client.stop_polling_for_updates()
 time.sleep(5)
